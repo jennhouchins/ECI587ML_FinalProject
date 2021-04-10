@@ -37,7 +37,7 @@ eoc_dtm_test <- create_matrix(test_data[,"text"], language="english",
                       removeStopwords=FALSE, removeNumbers=TRUE, 
                       stemWords=FALSE) 
 
-# consider tidytext instead
+# consider tidytext instead; would look something like...
 
 # eoc_tidy_dtm <- dev_data %>% 
 #   unnest_tokens(output = word, input = text) %>% 
@@ -89,10 +89,8 @@ testmat <- cbind(eoc_dtm_test_matrix, eoc_numeric_testdata)
 
 classifier <- naiveBayes(devmat, as.factor(dev_data$class))
 
-?naiveBayes
-
 # test the validity
 predicted <- predict(classifier, testmat)
 predicted
-table(test_data$class, predicted)
+table(test_data$class, predicted, dnn=c("Actual", "Prediction"))
 recall_accuracy(test_data$class, predicted)

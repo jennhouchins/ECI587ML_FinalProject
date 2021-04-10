@@ -45,7 +45,7 @@ eoc_data <- read_csv("data/eoc_survey_cleancolnames.csv") %>%
                                              ifelse(EffectivenessRating == 3, "neither",
                                                     ifelse(EffectivenessRating == 2, "effective", "veryeffective"))))) %>%
 
-  mutate(text = paste0(MostValuableAspects, ChangesToPractice, CourseRecommendations)) %>% 
+  mutate(text = paste0(MostValuableAspects, " ",ChangesToPractice, " ", CourseRecommendations)) %>% 
   drop_na() %>% 
   subset(text != "")
 
