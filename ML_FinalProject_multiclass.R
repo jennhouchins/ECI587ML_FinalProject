@@ -13,7 +13,7 @@ if (!require("pacman")) install.packages("pacman")
 # RTextTools is a supervised learning package for text classification and 
 # the e1071 package provides SVM in r
 pacman::p_load(pacman,readr, dplyr, tidyr, stringr, RWeka, tidytext, rstudioapi,
-               RTextTools, e1071)
+               RTextTools, e1071, tm, tidymodels, ggplot2, stringi)
 
 # the following chunk deals with setting the working directory and creating
 setwd(dirname(getActiveDocumentContext()$path)) # Set working directory to source file location

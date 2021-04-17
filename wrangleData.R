@@ -9,7 +9,7 @@
 
 # 1 PROJECT SETUP  ################################
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(pacman,readr, dplyr, tidyr, stringr, RWeka, tidytext)
+pacman::p_load(pacman,readr, plyr, dplyr, tidyr, stringr, RWeka, tidytext)
 
 eoc_data <- read_csv("data/eoc_survey_cleancolnames.csv") %>% 
   select(response,
@@ -40,15 +40,21 @@ eoc_data <- read_csv("data/eoc_survey_cleancolnames.csv") %>%
          CourseRecommendations = replace_na(CourseRecommendations, ""),
          AnticipatedApplicationPractice = replace_na(AnticipatedApplicationPractice, ""),
          CourseHoursEstimate = replace_na(CourseHoursEstimate, 0)) %>% 
-  mutate(class = ifelse(EffectivenessRating == 5, "veryineffective",
+  mutate(class = ifelse(EffectivenessRating == 5, "ineffective",
                                       ifelse(EffectivenessRating == 4, "ineffective",
                                              ifelse(EffectivenessRating == 3, "neither",
-                                                    ifelse(EffectivenessRating == 2, "effective", "veryeffective"))))) %>%
+                                                    ifelse(EffectivenessRating == 2, "effective", "effective"))))) %>%
 
   mutate(text = paste0(MostValuableAspects, " ",ChangesToPractice, " ", CourseRecommendations)) %>% 
+  mutate(text = gsub('[[:digit:]]+', ' ', text)) %>%   # removes numbers from the text
+  mutate(text = gsub('\\_+',' ', text)) %>% 
+  mutate(text = tolower(text)) %>% 
   drop_na() %>% 
-  subset(text != "")
+  subset(text != "  ")
 
+# check to see how imbalanced this data is (spoiler: very)
+eoc_ratings_count <- table(eoc_data$class)
+print(eoc_ratings_count)
 
 head(eoc_data,1)
 glimpse(eoc_data)
@@ -57,7 +63,6 @@ write.csv(eoc_data, "data/eoc_surveydata_wrangled.csv")
 
 eoc_data_singletext <- eoc_data %>% 
   select(response,
-         EffectivenessRating,
          IntroDiscussionRating,
          CourseContentRating,
          PuttingItTogetherRating,
@@ -75,6 +80,8 @@ eoc_data_singletext <- eoc_data %>%
          CourseHoursEstimate,
          class,
          text)
+
+write.csv(eoc_data_singletext, "data/eoc_surveydata_preprocessed.csv")
 
 set.seed(42)
 
