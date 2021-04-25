@@ -1,0 +1,78 @@
+---
+title             : "Using Machine Learning to Predict Professional Learning Course Satisfaction"
+shorttitle        : "ECI 587 Spring 2021"
+
+author: 
+  - name          : "Jennifer Houchins"
+    affiliation   : "1"
+    email         : "jkhouchi@ncsu.edu"
+
+affiliation:
+  - id            : "1"
+    institution   : "North Carolina State University"
+
+bibliography      : ["r-references.bib"]
+
+floatsintext      : yes
+figurelist        : no
+tablelist         : no
+footnotelist      : no
+linenumbers       : no
+mask              : no
+draft             : no
+
+csl               : "apa.csl"
+documentclass     : "apa7"
+classoption       : "man"
+output            : papaja::apa6_pdf
+---
+
+```{r setup, include = FALSE}
+library("papaja")
+r_refs("r-references.bib")
+```
+
+```{r analysis-preferences}
+# Seed for random number generation
+set.seed(42)
+knitr::opts_chunk$set(cache.extra = knitr::rand_seed)
+```
+
+**_An introduction that explains what prediction problem you have selected, what is interesting and important about it, and describes at a high level the ideas you applied as you were working on your project. In this discussion, you should cite 2 different published papers that you found that are related to your project. These can be related in any way: similar machine learning approach, similar data, something that helps you understand the topic domain, etc. If you don’t cite two relevant papers, you will not get credit for this section_**
+
+# Description of the Data
+
+**_A description of the data and how you set it up. Start by describing what raw features were given to you and then what you did to turn it into a tabular form that could be input to a machine learning algorithm. This includes how you partitioned it into subsets, how you set up the initial feature space representation, how you cleaned the data if necessary. You should also discuss what you decided would be your class value. You should explain where this class value came from. For example – was it something that someone hand-annotated? Did it come from a survey someone filled out? Was it measured by a sensor?_**
+
+The data source for my final project consists of the end of course survey responses for the “Teaching Remotely: A Practical Guide” 2020 professional learning course offered by the Friday Institute for Educational Innovation. The raw data includes 3080 end of course survey responses where participants provided their ratings for overall effectiveness of the course, their perceived effectiveness of particular aspects of the course, their estimated number of hours spent engaged in the course activities, and their ratings for how effectively the course improved their practice. 
+
+# Methods
+**_A description of your baseline experiment, one interesting error analysis including what problematic features you identified, what ideas you had for improvement, and an evaluation of whether it worked._**
+
+## Parameter Tuning
+
+**_A report of tuning at least one parameter._**
+
+
+## Evaluation
+**_A final evaluation on the Final Test Set_**
+
+
+## Data analysis
+We used `r cite_r("r-references.bib")` for all our analyses.
+
+
+# Discussion
+
+**_A discussion about what you learned from doing the project._**
+
+\newpage
+
+# References
+
+\begingroup
+\setlength{\parindent}{-0.5in}
+\setlength{\leftskip}{0.5in}
+
+<div id="refs" custom-style="Bibliography"></div>
+\endgroup

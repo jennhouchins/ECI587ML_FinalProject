@@ -14,7 +14,7 @@ if (!require("pacman")) install.packages("pacman")
 pacman::p_load(pacman, readr, dplyr, tidyr, stringr, tidyverse, 
                tidytext, rstudioapi, tm, tidymodels, ggplot2, stringi,
                recipes, textrecipes, modeldata, hardhat, discrim,
-               themis)
+               themis, BBmisc, vip, dials)
 
 # the following chunk deals with setting the working directory and creating
 setwd(dirname(getActiveDocumentContext()$path)) # Set working directory to source file location
@@ -27,10 +27,38 @@ if (!file.exists(datapath)){
 
 eoc_surveydata <- read.csv(file.path(datapath,"eoc_surveydata_preprocessed.csv"),
                            row.names = 1) %>% 
-  mutate(class = as.factor(class))
+  mutate(class = as.factor(class)) %>% 
+  mutate(IntroDiscussionRating = normalize(IntroDiscussionRating, method = "range",
+                                           range = c(0,1))) %>%
+  mutate(CourseContentRating = normalize(CourseContentRating, method = "range",
+                                           range = c(0,1))) %>%
+  mutate(PuttingItTogetherRating = normalize(PuttingItTogetherRating, method = "range",
+                                           range = c(0,1))) %>%
+  mutate(ActionPlanRating = normalize(ActionPlanRating, method = "range",
+                                           range = c(0,1))) %>%
+  mutate(ResourcesRating = normalize(ResourcesRating, method = "range",
+                                           range = c(0,1))) %>%
+  mutate(ImprovementEstablishingNorms = normalize(ImprovementEstablishingNorms, method = "range",
+                                     range = c(0,1))) %>%
+  mutate(ImprovementBringingSEL = normalize(ImprovementBringingSEL, method = "range",
+                                     range = c(0,1))) %>%
+  mutate(ImprovementMaintainingConnection = normalize(ImprovementMaintainingConnection, method = "range",
+                                     range = c(0,1))) %>%
+  mutate(ImprovementSelectDigResources = normalize(ImprovementSelectDigResources, method = "range",
+                                     range = c(0,1))) %>%
+  mutate(ImprovementSupportSpecialPop = normalize(ImprovementSupportSpecialPop, method = "range",
+                                     range = c(0,1))) %>%
+  mutate(ImprovementProvidingFeedback = normalize(ImprovementProvidingFeedback, method = "range",
+                                                  range = c(0,1))) %>%
+  mutate(PositiveChangesEffectiveness = normalize(PositiveChangesEffectiveness, method = "range",
+                                                  range = c(0,1))) %>%
+  mutate(HasAttemptedChanges = normalize(HasAttemptedChanges, method = "range",
+                                                  range = c(0,1))) %>%
+  mutate(DesiredActivityCompletion = normalize(DesiredActivityCompletion, method = "range",
+                                                  range = c(0,1))) %>%
+  mutate(CourseHoursEstimate = normalize(CourseHoursEstimate, method = "range",
+                                                  range = c(0,1)))
 
-# eoc_text <- eoc_surveydata %>% 
-#   select(response, text)
 
 # 2 PREPARE FOR MODELING ###########################
 
@@ -68,9 +96,9 @@ survey_nb_recipe <- recipe(class ~., data = eoc_train_nb) %>%
   step_tokenize(text) %>% 
   step_tokenfilter(text, max_tokens = 1e3) %>% 
   step_tfidf(text) #%>% 
-# step_downsample(class)
+  # step_smote(class)
 
-eoc_wf <- workflow() %>%
+eoc_nb_wf <- workflow() %>%
   add_recipe(survey_nb_recipe)
 
 nb_spec <- naive_Bayes() %>%
@@ -79,11 +107,11 @@ nb_spec <- naive_Bayes() %>%
 
 nb_spec
 
-nb_fit <- nb_wf %>%
+nb_fit <- eoc_nb_wf %>%
   add_model(nb_spec) %>%
   fit(data = eoc_train_nb)
 
-nb_folds <- vfold_cv(eoc_train_nb)
+nb_folds <- vfold_cv(eoc_train_nb, strata = class, v=5)
 
 nb_folds
 
@@ -132,12 +160,14 @@ survey_recipe <- recipe(class ~., data = eoc_train) %>%
   step_tokenize(text) %>% 
   step_tokenfilter(text, max_tokens = 1e3) %>% 
   step_tfidf(text) #%>% 
-  # step_downsample(class)
+  # step_smote(class)
+
+survey_prep <- prep(survey_recipe)
 
 survey_wf <- workflow() %>% 
   add_recipe(survey_recipe)
 
-survey_folds <- vfold_cv(eoc_train)
+survey_folds <- vfold_cv(eoc_train, strata = class, v = 5)
 
 multi_spec <- multinom_reg(penalty = tune(), mixture = 1) %>%
   set_mode("classification") %>%
@@ -170,8 +200,17 @@ best_acc
 multi_lasso_rs %>%
   collect_predictions() %>%
   filter(penalty == best_acc$penalty) %>%
-  filter(id == "Fold01") %>%
+  filter(id == "Fold1") %>%
   conf_mat(class, .pred_class) %>%
   autoplot(type = "heatmap") +
   scale_y_discrete(labels = function(x) str_wrap(x, 20)) +
   scale_x_discrete(labels = function(x) str_wrap(x, 20))
+
+multi_lasso_fit <- multi_lasso_wf %>% 
+  fit(data = eoc_train)
+
+multi_lasso_fit
+
+multi_lasso_fit %>%
+  pull_workflow_fit() %>% 
+  vip(num_features = 50, geom = "point")
