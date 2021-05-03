@@ -14,7 +14,7 @@ if (!require("pacman")) install.packages("pacman")
 pacman::p_load(pacman, readr, dplyr, tidyr, stringr, tidyverse, 
                tidytext, rstudioapi, tm, tidymodels, ggplot2, stringi,
                recipes, textrecipes, modeldata, hardhat, discrim,
-               themis, BBmisc, vip, dials)
+               themis, BBmisc, vip, dials, textfeatures)
 
 # the following chunk deals with setting the working directory and creating
 setwd(dirname(getActiveDocumentContext()$path)) # Set working directory to source file location
@@ -28,6 +28,7 @@ if (!file.exists(datapath)){
 eoc_surveydata <- read.csv(file.path(datapath,"eoc_surveydata_preprocessed.csv"),
                            row.names = 1) %>% 
   mutate(class = as.factor(class)) %>% 
+  mutate(text = gsub('&nbsp;',' ', text)) %>% 
   mutate(IntroDiscussionRating = normalize(IntroDiscussionRating, method = "range",
                                            range = c(0,1))) %>%
   mutate(CourseContentRating = normalize(CourseContentRating, method = "range",
@@ -90,84 +91,29 @@ eoc_test_nb <- eoc_test %>%
 table(eoc_train_nb$class)
 table(eoc_test_nb$class)
 
-# 3 TRY LOGISTIC REGRESSION ####################
-survey_nb_recipe <- recipe(class ~., data = eoc_train_nb) %>% 
-  update_role(response, new_role = "ID") %>% 
-  step_tokenize(text) %>% 
-  step_tokenfilter(text, max_tokens = 1e3) %>% 
-  step_tfidf(text) #%>% 
-  # step_smote(class)
-
-eoc_nb_wf <- workflow() %>%
-  add_recipe(survey_nb_recipe)
-
-nb_spec <- naive_Bayes() %>%
-  set_mode("classification") %>%
-  set_engine("naivebayes")
-
-nb_spec
-
-nb_fit <- eoc_nb_wf %>%
-  add_model(nb_spec) %>%
-  fit(data = eoc_train_nb)
-
-nb_folds <- vfold_cv(eoc_train_nb, strata = class, v=5)
-
-nb_folds
-
-nb_wf <- workflow() %>% 
-  add_recipe(survey_nb_recipe) %>% 
-  add_model(nb_spec)
-
-nb_wf
-
-nb_rs <- fit_resamples(
-  nb_wf,
-  nb_folds,
-  control = control_resamples(save_pred = TRUE)
-)
-
-nb_rs_metrics <- collect_metrics(nb_rs)
-nb_rs_predictions <- collect_predictions(nb_rs)
-
-nb_rs_metrics
-
-nb_rs_predictions %>%
-  group_by(id) %>%
-  roc_curve(truth = class, .pred_effective) %>%
-  autoplot() +
-  labs(
-    color = NULL,
-    title = "ROC curve for Teaching Remotely EOC Survey responses",
-    subtitle = "Each resample fold is shown in a different color"
-  )
-# why doesn't this confusion matrix work?!! This is how it was done in the
-# tidymodels documentation... arghhh
-
-# conf_mat_resampled(nb_rs, tidy = FALSE) %>%
-#   autoplot(type = "heatmap")
-
-conf_mat_resampled(nb_rs) 
-
-
 # 4 TRY LASSO MULTICLASSIFICATION #####################
 
 # To move forward use Julia Silge's tutorial post here
 # https://juliasilge.com/blog/tidy-text-classification/
 
-survey_recipe <- recipe(class ~., data = eoc_train) %>% 
+survey_recipe <- recipe(class ~ response + IntroDiscussionRating + 
+                          ActionPlanRating + 
+                          PositiveChangesEffectiveness +
+                          text, data = eoc_train) %>% 
   update_role(response, new_role = "ID") %>% 
-  step_tokenize(text) %>% 
+  step_tokenize(text) %>%
+  step_ngram(text) %>%
+  step_stopwords(text) %>%
   step_tokenfilter(text, max_tokens = 1e3) %>% 
-  step_tfidf(text) #%>% 
-  # step_smote(class)
+  step_tfidf(text) %>%
+  step_downsample(class)
 
-survey_prep <- prep(survey_recipe)
+# survey_prep <- prep(survey_recipe)
 
 survey_wf <- workflow() %>% 
   add_recipe(survey_recipe)
 
-survey_folds <- vfold_cv(eoc_train, strata = class, v = 5)
+survey_folds <- vfold_cv(eoc_train)
 
 multi_spec <- multinom_reg(penalty = tune(), mixture = 1) %>%
   set_mode("classification") %>%
@@ -188,7 +134,8 @@ multi_lasso_rs <- tune_grid(
   multi_lasso_wf,
   survey_folds,
   grid = 10,
-  control = control_resamples(save_pred = TRUE)
+  control = control_resamples(save_pred = TRUE),
+  metrics = metric_set(accuracy, sensitivity, specificity)
 )
 
 multi_lasso_rs
@@ -200,7 +147,7 @@ best_acc
 multi_lasso_rs %>%
   collect_predictions() %>%
   filter(penalty == best_acc$penalty) %>%
-  filter(id == "Fold1") %>%
+  filter(id == "Fold09") %>%
   conf_mat(class, .pred_class) %>%
   autoplot(type = "heatmap") +
   scale_y_discrete(labels = function(x) str_wrap(x, 20)) +
@@ -214,3 +161,26 @@ multi_lasso_fit
 multi_lasso_fit %>%
   pull_workflow_fit() %>% 
   vip(num_features = 50, geom = "point")
+
+autoplot(multi_lasso_rs) +
+  labs(
+    color = "Number of tokens",
+    title = "Model performance across regularization penalties and tokens",
+    subtitle = paste("We can choose a simpler model with higher regularization")
+  )
+
+choose_acc <- multi_lasso_rs %>%
+  select_by_pct_loss(metric = "accuracy", -penalty)
+
+choose_acc
+
+final_wf <- finalize_workflow(multi_lasso_wf, choose_acc)
+final_wf
+
+final_fitted <- last_fit(final_wf, data_split)
+
+collect_metrics(final_fitted)
+
+collect_predictions(final_fitted) %>%
+  conf_mat(truth = class, estimate = .pred_class) %>%
+  autoplot(type = "heatmap")
